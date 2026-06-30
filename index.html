@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>HSK5 Trainer — 开發智大 专用</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a323d;
+    --txt:#e6edf3; --sub:#9aa7b4; --accent:#e23b3b; --accent2:#f0a020;
+    --good:#36b37e; --mid:#f0a020; --bad:#e23b3b; --blue:#4493f8;
+    --radius:16px; --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",Roboto,sans-serif;
+    line-height:1.6; padding:env(safe-area-inset-top) 0 0;
+    max-width:520px; margin:0 auto; min-height:100vh;
+  }
+  .wrap{padding:16px 16px 96px}
+  h1,h2,h3{margin:0 0 .4em}
+  .sub{color:var(--sub); font-size:13px}
+  .center{text-align:center}
+  button{font-family:inherit; cursor:pointer; border:none; color:inherit}
+  .hide{display:none !important}
+
+  /* header */
+  .topbar{display:flex; align-items:center; gap:10px; padding:14px 16px 6px}
+  .logo{font-weight:800; letter-spacing:.5px; font-size:18px}
+  .logo span{color:var(--accent)}
+  .topbar .right{margin-left:auto; font-size:12px; color:var(--sub)}
+
+  /* cards */
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow)}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .stat{background:var(--panel2); border:1px solid var(--line); border-radius:14px; padding:14px; text-align:center}
+  .stat .n{font-size:30px; font-weight:800; line-height:1.1}
+  .stat .l{font-size:12px; color:var(--sub); margin-top:2px}
+  .stat .n.accent{color:var(--accent)}
+  .stat .n.warn{color:var(--accent2)}
+  .stat .n.good{color:var(--good)}
+
+  .progress{height:10px; background:#0a0d11; border-radius:99px; overflow:hidden; margin-top:8px; border:1px solid var(--line)}
+  .progress>i{display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); width:0%}
+
+  /* module tiles */
+  .tiles{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:4px}
+  .tile{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; text-align:left; transition:transform .08s, border-color .15s}
+  .tile:active{transform:scale(.97)}
+  .tile .emo{font-size:26px}
+  .tile .t{font-weight:700; margin-top:6px}
+  .tile .d{font-size:12px; color:var(--sub)}
+  .tile .badge{display:inline-block; margin-top:8px; font-size:11px; background:var(--panel2); border:1px solid var(--line); border-radius:99px; padding:2px 8px; color:var(--sub)}
+
+  /* buttons */
+  .btn{display:inline-block; width:100%; text-align:center; padding:14px; border-radius:14px; font-weight:700; font-size:15px; background:var(--panel2); border:1px solid var(--line)}
+  .btn.primary{background:linear-gradient(180deg,#ef4b4b,#cf2f2f); border-color:#cf2f2f}
+  .btn.ghost{background:transparent}
+  .btn-row{display:flex; gap:10px}
+  .btn-row>*{flex:1}
+
+  /* flashcard */
+  .flash{min-height:230px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 16px}
+  .hanzi{font-size:64px; font-weight:700; line-height:1.1}
+  .pinyin{font-size:24px; color:var(--accent2); margin-top:10px; letter-spacing:.5px}
+  .mean{font-size:20px; margin-top:8px}
+  .ex{font-size:15px; color:var(--sub); margin-top:14px; border-top:1px dashed var(--line); padding-top:12px}
+  .ex .exh{color:var(--txt)}
+  .rate{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+  .rate button{padding:14px 6px; border-radius:14px; font-weight:700; font-size:14px; border:1px solid var(--line)}
+  .rate .again{background:rgba(226,59,59,.15); color:#ff8a8a; border-color:#5b2a2a}
+  .rate .hard{background:rgba(240,160,32,.13); color:#ffce7a; border-color:#5b4a22}
+  .rate .good{background:rgba(54,179,126,.15); color:#7ee2b3; border-color:#235140}
+
+  .speakbtn{width:64px; height:64px; border-radius:50%; background:var(--panel2); border:1px solid var(--line); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto}
+  .speakbtn:active{transform:scale(.94)}
+
+  /* quiz */
+  .opt{display:block; width:100%; text-align:left; padding:13px 14px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); margin-bottom:10px; font-size:15px}
+  .opt.correct{background:rgba(54,179,126,.18); border-color:var(--good)}
+  .opt.wrong{background:rgba(226,59,59,.16); border-color:var(--bad)}
+  .opt.disabled{opacity:.6}
+  .passage{font-size:18px; line-height:2; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px}
+  .explain{font-size:14px; color:var(--sub); background:#0a0d11; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:6px}
+
+  .tokens{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0}
+  .token{padding:10px 14px; background:var(--panel2); border:1px solid var(--line); border-radius:10px; font-size:18px}
+  .token:active{transform:scale(.95)}
+  .answerline{min-height:52px; border:1px dashed var(--line); border-radius:10px; padding:8px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:20px}
+
+  textarea,input{width:100%; background:#0a0d11; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:10px; font-family:inherit; font-size:14px}
+  textarea{min-height:120px; resize:vertical}
+  label.fl{font-size:13px; color:var(--sub); display:block; margin:10px 0 4px}
+
+  /* bottom nav */
+  .nav{position:fixed; left:0; right:0; bottom:0; max-width:520px; margin:0 auto; background:rgba(14,17,22,.92); backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  .nav button{flex:1; background:transparent; padding:8px 2px; font-size:11px; color:var(--sub); display:flex; flex-direction:column; align-items:center; gap:3px}
+  .nav button .ic{font-size:20px}
+  .nav button.on{color:var(--txt)}
+  .nav button.on .ic{transform:translateY(-1px)}
+
+  .pill{display:inline-block; font-size:12px; padding:3px 10px; border-radius:99px; background:var(--panel2); border:1px solid var(--line); color:var(--sub)}
+  .empty{text-align:center; color:var(--sub); padding:40px 10px}
+  .toast{position:fixed; left:50%; bottom:84px; transform:translateX(-50%); background:#000; border:1px solid var(--line); padding:10px 16px; border-radius:99px; font-size:13px; opacity:0; transition:opacity .25s; z-index:50; max-width:90%}
+  .toast.show{opacity:1}
+  a.link{color:var(--blue); text-decoration:none}
+  .warnbox{font-size:13px; background:rgba(240,160,32,.1); border:1px solid #5b4a22; color:#ffce7a; border-radius:10px; padding:10px 12px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">HSK<span>5</span> Trainer</div>
+  <div class="right" id="examPill"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===== HOME ===== -->
+  <section id="view-home">
+    <div class="card">
+      <div class="stat-grid">
+        <div class="stat"><div class="n accent" id="hDays">–</div><div class="l">試験まで（日）</div></div>
+        <div class="stat"><div class="n good" id="hStreak">0</div><div class="l">連続学習日数 🔥</div></div>
+        <div class="stat"><div class="n warn" id="hDue">0</div><div class="l">今日の復習</div></div>
+        <div class="stat"><div class="n" id="hNew">0</div><div class="l">今日の新出</div></div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="sub">今日のノルマ進捗 <span id="goalTxt"></span></div>
+        <div class="progress"><i id="goalBar"></i></div>
+      </div>
+    </div>
+
+    <h3 style="margin:6px 2px 10px">学習メニュー</h3>
+    <div class="tiles">
+      <button class="tile" onclick="go('vocab')">
+        <div class="emo">📕</div><div class="t">単語 SRS</div>
+        <div class="d">間隔反復で語彙を定着</div>
+        <div class="badge" id="bVocab">– 語</div>
+      </button>
+      <button class="tile" onclick="go('listen')">
+        <div class="emo">🎧</div><div class="t">リスニング</div>
+        <div class="d">中国語音声→意味を当てる</div>
+        <div class="badge" id="bListen">読み上げ</div>
+      </button>
+      <button class="tile" onclick="go('read')">
+        <div class="emo">📖</div><div class="t">読解</div>
+        <div class="d">短文＋内容理解</div>
+        <div class="badge" id="bRead">– 問</div>
+      </button>
+      <button class="tile" onclick="go('grammar')">
+        <div class="emo">✍️</div><div class="t">文法</div>
+        <div class="d">並べ替え・空欄補充</div>
+        <div class="badge" id="bGram">– 問</div>
+      </button>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="sub" style="margin-bottom:8px">クイック</div>
+      <div class="btn-row">
+        <button class="btn" onclick="go('manage')">⚙️ 単語の追加・管理</button>
+        <button class="btn ghost" onclick="speak('你好，加油！')">🔊 音声テスト</button>
+      </div>
+    </div>
+    <p class="sub center" style="margin-top:18px"><span id="hSync"></span><br>作: あなた専用 / クラウド同期を設定すると PC↔スマホで進捗が自動で揃います（⚙️管理）</p>
+  </section>
+
+  <!-- ===== VOCAB ===== -->
+  <section id="view-vocab" class="hide">
+    <div class="card center">
+      <span class="pill" id="vocabStatus">準備中</span>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div id="vocabActions"></div>
+    <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← ホーム</button>
+  </section>
+
+  <!-- ===== LISTEN ===== -->
+  <section id="view-listen" class="hide">
+    <div class="card center">
+      <span class="pill">リスニング（音声→意味）</span>
+      <div class="flash">
+        <button class="speakbtn" onclick="listenPlay()">🔊</button>
+        <div class="sub" style="margin-top:12px">タップで再生（繰り返し可）</div>
+        <div id="listenReveal" class="hide">
+          <div class="hanzi" id="lHanzi" style="font-size:48px"></div>
+          <div class="pinyin" id="lPinyin"></div>
+          <div class="mean" id="lMean"></div>
+        </div>
+      </div>
+    </div>
+    <div id="listenActions"></div>
+    <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← ホーム</button>
+  </section>
+
+  <!-- ===== READ ===== -->
+  <section id="view-read" class="hide">
+    <div class="card">
+      <span class="pill" id="readStatus"></span>
+      <div id="readBody"></div>
+    </div>
+    <button class="btn ghost" onclick="go('home')">← ホーム</button>
+  </section>
+
+  <!-- ===== GRAMMAR ===== -->
+  <section id="view-grammar" class="hide">
+    <div class="card">
+      <span class="pill" id="gramStatus"></span>
+      <div id="gramBody"></div>
+    </div>
+    <button class="btn ghost" onclick="go('home')">← ホーム</button>
+  </section>
+
+  <!-- ===== MANAGE ===== -->
+  <section id="view-manage" class="hide">
+    <div class="card">
+      <h3>☁️ クラウド同期（PC↔スマホ）</h3>
+      <p class="sub">下の3項目を<b>両方の端末に同じ内容で</b>入れると、進捗が自動で揃います。設定手順はREADME参照。</p>
+      <label class="fl">Supabase URL（例: https://xxxx.supabase.co）</label>
+      <input id="cfgUrl" placeholder="https://xxxx.supabase.co">
+      <label class="fl">anon key（公開キー・貼り付けOK）</label>
+      <input id="cfgKey" placeholder="eyJhbGci...">
+      <label class="fl">同期コード（自分専用の合言葉。両端末で同じものを）</label>
+      <div style="display:flex; gap:8px">
+        <input id="cfgCode" placeholder="長いランダム文字列">
+        <button class="btn" style="width:auto; padding:10px 14px" onclick="genCode()">生成</button>
+      </div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" onclick="saveCfg()">保存して同期</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn" onclick="manualPull()">⬇️ 今すぐ取得</button>
+        <button class="btn" onclick="manualPush()">⬆️ 今すぐ保存</button>
+      </div>
+      <div class="sub" id="syncStat" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>単語の追加（インポート）</h3>
+      <p class="sub">1行 = 1語。区切りは「カンマ」「タブ」どれでもOK。<br>形式: <b>漢字, 拼音, 意味, 例文(任意)</b></p>
+      <div class="warnbox">⚠️ シード単語は厳選版です。網羅版にするには、信頼できるHSK5単語リストをここに貼って取り込んでください（推測データは混ぜない方針）。</div>
+      <label class="fl">貼り付け</label>
+      <textarea id="importBox" placeholder="安排, ānpái, 手配する・段取りする, 我来安排时间。
+抱怨, bàoyuàn, 不平を言う"></textarea>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn primary" onclick="doImport()">取り込む</button>
+        <button class="btn ghost" onclick="document.getElementById('importBox').value=''">クリア</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>バックアップ / 同期</h3>
+      <p class="sub">学習進捗を含む全データを書き出し / 復元（端末間の同期に）。</p>
+      <div class="btn-row">
+        <button class="btn" onclick="doExport()">⬇️ エクスポート</button>
+        <button class="btn" onclick="document.getElementById('restoreFile').click()">⬆️ 復元</button>
+      </div>
+      <input type="file" id="restoreFile" accept=".json" class="hide" onchange="doRestore(event)">
+    </div>
+    <div class="card">
+      <h3>統計 / リセット</h3>
+      <div class="sub" id="statBox"></div>
+      <button class="btn ghost" style="margin-top:10px; color:#ff8a8a" onclick="resetProgress()">学習進捗をリセット（単語は残す）</button>
+    </div>
+    <button class="btn ghost" onclick="go('home')">← ホーム</button>
+  </section>
+
+</div>
+
+<!-- bottom nav -->
+<div class="nav">
+  <button id="nav-home" class="on" onclick="go('home')"><span class="ic">🏠</span>ホーム</button>
+  <button id="nav-vocab" onclick="go('vocab')"><span class="ic">📕</span>単語</button>
+  <button id="nav-listen" onclick="go('listen')"><span class="ic">🎧</span>聞く</button>
+  <button id="nav-read" onclick="go('read')"><span class="ic">📖</span>読解</button>
+  <button id="nav-grammar" onclick="go('grammar')"><span class="ic">✍️</span>文法</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   HSK5 Trainer — single-file personal app
+   試験日: 2026-07-18
+   ========================================================= */
+const EXAM_DATE = "2026-07-18";
+const NEW_PER_DAY = 15;          // 1日の新出語上限（変更可）
+const LS = {
+  user:  "hsk5.vocab.user",      // ユーザー追加語 [{h,p,m,e}]
+  srs:   "hsk5.srs",             // h -> {reps,interval,ease,due}
+  meta:  "hsk5.meta",            // 学習メタ
+  cfg:   "hsk5.cfg"              // クラウド同期設定 {url,key,code}
+};
+
+/* ---- シード語彙（厳選・拼音/意味は確認済みの常用HSK5語）---- */
+const SEED = [
+ {h:"安排",p:"ānpái",m:"手配する・段取りする",e:"我来安排明天的会议。"},
+ {h:"保持",p:"bǎochí",m:"保つ・維持する",e:"请保持安静。"},
+ {h:"抱怨",p:"bàoyuàn",m:"不平を言う・愚痴る"},
+ {h:"表达",p:"biǎodá",m:"表現する・言い表す",e:"很难用语言表达。"},
+ {h:"避免",p:"bìmiǎn",m:"避ける",e:"我们应该避免浪费。"},
+ {h:"标准",p:"biāozhǔn",m:"標準・基準"},
+ {h:"表面",p:"biǎomiàn",m:"表面"},
+ {h:"补充",p:"bǔchōng",m:"補充する・補う"},
+ {h:"不断",p:"búduàn",m:"絶え間なく",e:"他的水平不断提高。"},
+ {h:"部门",p:"bùmén",m:"部門・部署"},
+ {h:"采访",p:"cǎifǎng",m:"取材する・インタビューする"},
+ {h:"采取",p:"cǎiqǔ",m:"（手段を）取る・採用する",e:"我们要采取措施。"},
+ {h:"参考",p:"cānkǎo",m:"参考にする"},
+ {h:"曾经",p:"céngjīng",m:"かつて・以前に",e:"我曾经去过中国。"},
+ {h:"差距",p:"chājù",m:"差・隔たり"},
+ {h:"常识",p:"chángshí",m:"常識"},
+ {h:"吵架",p:"chǎojià",m:"口げんかする"},
+ {h:"彻底",p:"chèdǐ",m:"徹底的に"},
+ {h:"沉默",p:"chénmò",m:"沈黙する・寡黙な"},
+ {h:"称呼",p:"chēnghu",m:"呼ぶ・呼び名"},
+ {h:"成熟",p:"chéngshú",m:"成熟した・熟す"},
+ {h:"成语",p:"chéngyǔ",m:"成語・四字熟語"},
+ {h:"承认",p:"chéngrèn",m:"認める",e:"他承认了自己的错误。"},
+ {h:"程度",p:"chéngdù",m:"程度"},
+ {h:"持续",p:"chíxù",m:"持続する・続く"},
+ {h:"充分",p:"chōngfèn",m:"十分な"},
+ {h:"重复",p:"chóngfù",m:"繰り返す"},
+ {h:"抽象",p:"chōuxiàng",m:"抽象的な"},
+ {h:"出版",p:"chūbǎn",m:"出版する"},
+ {h:"出色",p:"chūsè",m:"優れた・際立った"},
+ {h:"处理",p:"chǔlǐ",m:"処理する"},
+ {h:"传播",p:"chuánbō",m:"伝播する・広める"},
+ {h:"传统",p:"chuántǒng",m:"伝統・伝統的な"},
+ {h:"创造",p:"chuàngzào",m:"創造する・作り出す"},
+ {h:"词汇",p:"cíhuì",m:"語彙"},
+ {h:"辞职",p:"cízhí",m:"辞職する"},
+ {h:"此外",p:"cǐwài",m:"この他・さらに"},
+ {h:"刺激",p:"cìjī",m:"刺激する・刺激"},
+ {h:"促进",p:"cùjìn",m:"促進する"},
+ {h:"存在",p:"cúnzài",m:"存在する"},
+ {h:"措施",p:"cuòshī",m:"措置・対策"},
+ {h:"达到",p:"dádào",m:"達する・到達する",e:"达到了目标。"},
+ {h:"答应",p:"dāying",m:"承諾する・返事する"},
+ {h:"代表",p:"dàibiǎo",m:"代表する・代表"},
+ {h:"单纯",p:"dānchún",m:"単純な・純粋な"},
+ {h:"单独",p:"dāndú",m:"単独で・一人で"},
+ {h:"担任",p:"dānrèn",m:"担当する・務める"},
+ {h:"当地",p:"dāngdì",m:"現地・その土地"},
+ {h:"导致",p:"dǎozhì",m:"（悪い結果を）引き起こす"},
+ {h:"道德",p:"dàodé",m:"道徳"},
+ {h:"的确",p:"díquè",m:"確かに・本当に"},
+ {h:"地区",p:"dìqū",m:"地区・地域"},
+ {h:"地位",p:"dìwèi",m:"地位"},
+ {h:"对待",p:"duìdài",m:"扱う・対応する"},
+ {h:"对方",p:"duìfāng",m:"相手・先方"},
+ {h:"多余",p:"duōyú",m:"余分な・余計な"},
+ {h:"发表",p:"fābiǎo",m:"発表する"},
+ {h:"发挥",p:"fāhuī",m:"発揮する"},
+ {h:"反复",p:"fǎnfù",m:"繰り返し・何度も"},
+ {h:"反映",p:"fǎnyìng",m:"反映する・報告する"},
+ {h:"范围",p:"fànwéi",m:"範囲"},
+ {h:"方式",p:"fāngshì",m:"方式・やり方"},
+ {h:"妨碍",p:"fáng'ài",m:"妨げる・邪魔する"},
+ {h:"分析",p:"fēnxī",m:"分析する"},
+ {h:"丰富",p:"fēngfù",m:"豊富な・豊かにする"},
+ {h:"否则",p:"fǒuzé",m:"さもなければ"},
+ {h:"改善",p:"gǎishàn",m:"改善する"},
+ {h:"概念",p:"gàiniàn",m:"概念"},
+ {h:"感激",p:"gǎnjī",m:"感激する・深く感謝する"},
+ {h:"个人",p:"gèrén",m:"個人"},
+ {h:"根本",p:"gēnběn",m:"根本・まったく（～ない）"},
+ {h:"工具",p:"gōngjù",m:"道具・ツール"},
+ {h:"贡献",p:"gòngxiàn",m:"貢献する・貢献"},
+ {h:"沟通",p:"gōutōng",m:"意思疎通する・コミュニケーション"},
+ {h:"构成",p:"gòuchéng",m:"構成する"},
+ {h:"鼓舞",p:"gǔwǔ",m:"奮い立たせる・励ます"},
+ {h:"关闭",p:"guānbì",m:"閉鎖する・閉じる"},
+ {h:"观念",p:"guānniàn",m:"観念・考え方"},
+ {h:"管理",p:"guǎnlǐ",m:"管理する"},
+ {h:"规律",p:"guīlǜ",m:"規律・法則"},
+ {h:"过分",p:"guòfèn",m:"度を超している・行き過ぎ"}
+];
+
+/* ---- 読解 ---- */
+const READING = [
+ {text:"小李大学毕业以后，没有马上找工作，而是决定先去云南旅行一个月。他说，年轻的时候应该多看看外面的世界，这样才能更清楚自己真正想要的生活。",
+  q:"小李毕业后做了什么？",
+  o:["马上去工作","去云南旅行","回老家","继续读研究生"], a:1,
+  ex:"「没有马上找工作，而是决定先去云南旅行」＝就職せず旅行を選んだ。"},
+ {text:"随着科技的发展，越来越多的人习惯在网上购物。网上购物虽然方便，但是也有缺点，比如看不到商品真实的样子，有时候收到的东西和图片差别很大。",
+  q:"根据短文，网上购物的缺点是什么？",
+  o:["价格太贵","速度太慢","看不到真实的商品","不能付款"], a:2,
+  ex:"「看不到商品真实的样子」が缺点として挙げられている。"},
+ {text:"王教授认为，学习一门外语最重要的不是记住多少单词，而是坚持每天练习。哪怕每天只学习十分钟，只要不放弃，时间长了也会有很大的进步。",
+  q:"王教授觉得学外语最重要的是什么？",
+  o:["记很多单词","每天坚持练习","找一个好老师","出国留学"], a:1,
+  ex:"「最重要的不是记住多少单词，而是坚持每天练习」＝毎日続けること。あなたの筋トレと同じ哲学。"}
+];
+
+/* ---- 文法 ---- */
+const GRAMMAR = [
+ {type:"blank", s:"我们应该想办法____浪费。", o:["避免","避开","拒绝","防止"], a:0,
+  ex:"「避免浪费」＝無駄を避ける。避免＋動詞/名詞で「～を避ける」。"},
+ {type:"blank", s:"____天气不好，比赛还是照常进行。", o:["因为","虽然","即使","不但"], a:2,
+  ex:"「即使…还是/也」＝たとえ～でも。仮定の譲歩。"},
+ {type:"blank", s:"这件事____小王负责。", o:["把","被","由","给"], a:2,
+  ex:"「由＋人＋负责」＝（人）が責任を持つ／担当する。"},
+ {type:"blank", s:"他的中文水平____提高了。", o:["不断","不停","不要","不会"], a:0,
+  ex:"「不断提高」＝絶え間なく向上する。"},
+ {type:"order", tokens:["把","请","门","关上"], a:"请把门关上", tr:"ドアを閉めてください（把構文）"},
+ {type:"order", tokens:["越来越","天气","了","冷"], a:"天气越来越冷了", tr:"だんだん寒くなってきた"},
+ {type:"order", tokens:["坚持","只要","就","会","进步","你"], a:"只要你坚持就会进步", tr:"続けさえすれば進歩する"}
+];
+
+/* ========================= state ========================= */
+function load(k,def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(e){ return def; } }
+function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+let META = load(LS.meta, {lastActive:"", streak:0, daily:{date:"", newDone:0, reviewDone:0}, updatedAt:0});
+let SRS  = load(LS.srs, {});
+let USER = load(LS.user, []);
+let CFG  = load(LS.cfg, {url:"", key:"", code:""});
+
+function vocab(){ // merge seed + user, dedupe by hanzi (user overrides)
+  const map = {};
+  SEED.forEach(w=> map[w.h]=w);
+  USER.forEach(w=> map[w.h]=Object.assign({}, map[w.h], w));
+  return Object.values(map);
+}
+function ensureDaily(){
+  const t=todayStr();
+  if(META.daily.date!==t){ META.daily={date:t,newDone:0,reviewDone:0}; save(LS.meta,META); }
+}
+function bumpStreak(){
+  const t=todayStr();
+  if(META.lastActive===t) return;
+  const y=new Date(Date.now()-86400000);
+  const ys=y.getFullYear()+"-"+String(y.getMonth()+1).padStart(2,"0")+"-"+String(y.getDate()).padStart(2,"0");
+  META.streak = (META.lastActive===ys) ? META.streak+1 : 1;
+  META.lastActive=t; save(LS.meta,META);
+}
+
+/* SRS state helpers */
+function st(h){ return SRS[h] || {reps:0, interval:0, ease:2.5, due:0, isNew:true}; }
+function daysToExam(){ return Math.max(0, Math.ceil((new Date(EXAM_DATE) - new Date(todayStr()))/86400000)); }
+
+function dueCards(){ // 復習対象（既習で期限到来）
+  const now=Date.now();
+  return vocab().filter(w=>{ const s=SRS[w.h]; return s && !s.isNew && s.due<=now; });
+}
+function newCards(limit){ // 未学習
+  const all=vocab().filter(w=> !SRS[w.h] || SRS[w.h].isNew);
+  return limit? all.slice(0,limit) : all;
+}
+function rate(h, grade){ // grade: 1 again / 2 hard / 3 good
+  ensureDaily();
+  let s = st(h);
+  const wasNew = s.isNew || s.reps===0 && !SRS[h];
+  if(grade===1){ s.reps=0; s.interval=0; s.ease=Math.max(1.3, s.ease-0.2); s.due=Date.now()+60*1000; }
+  else if(grade===2){ s.reps++; s.ease=Math.max(1.3, s.ease-0.15); s.interval=Math.max(1, Math.round((s.interval||1)*1.2)); s.due=Date.now()+s.interval*86400000; }
+  else { s.reps++; if(s.reps===1) s.interval=1; else if(s.reps===2) s.interval=3; else s.interval=Math.round((s.interval||3)*s.ease); s.due=Date.now()+s.interval*86400000; }
+  s.isNew=false;
+  SRS[h]=s; save(LS.srs,SRS);
+  if(wasNew) META.daily.newDone++; else META.daily.reviewDone++;
+  save(LS.meta,META); bumpStreak(); touch();
+}
+
+/* ========================= TTS ========================= */
+let zhVoice=null;
+function pickVoice(){
+  const vs=speechSynthesis.getVoices();
+  zhVoice = vs.find(v=>/zh[-_]?CN/i.test(v.lang)) || vs.find(v=>/^zh/i.test(v.lang)) || null;
+}
+if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
+function speak(text){
+  if(!('speechSynthesis' in window)){ toast("この端末は音声に未対応"); return; }
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="zh-CN"; if(zhVoice) u.voice=zhVoice; u.rate=0.9;
+  if(!zhVoice) toast("中国語音声が見つかりません（端末に追加を）");
+  speechSynthesis.speak(u);
+}
+
+/* ========================= navigation ========================= */
+const VIEWS=["home","vocab","listen","read","grammar","manage"];
+function go(v){
+  VIEWS.forEach(x=>{ const el=document.getElementById("view-"+x); if(el) el.classList.toggle("hide", x!==v); });
+  ["home","vocab","listen","read","grammar"].forEach(x=>{ const n=document.getElementById("nav-"+x); if(n) n.classList.toggle("on", x===v); });
+  window.scrollTo(0,0);
+  if(v==="home") renderHome();
+  if(v==="vocab") startVocab();
+  if(v==="listen") startListen();
+  if(v==="read") startRead();
+  if(v==="grammar") startGrammar();
+  if(v==="manage") renderManage();
+}
+
+/* ========================= HOME ========================= */
+function renderHome(){
+  ensureDaily();
+  const d=daysToExam();
+  document.getElementById("hDays").textContent=d;
+  document.getElementById("examPill").textContent="本番 "+EXAM_DATE+"（あと"+d+"日）";
+  document.getElementById("hStreak").textContent=META.streak;
+  document.getElementById("hDue").textContent=dueCards().length;
+  document.getElementById("hNew").textContent=Math.max(0, NEW_PER_DAY-META.daily.newDone);
+  const done=META.daily.newDone+META.daily.reviewDone;
+  const goal=NEW_PER_DAY+dueCards().length+META.daily.reviewDone;
+  const pct=goal? Math.min(100, Math.round(done/goal*100)) : 0;
+  document.getElementById("goalBar").style.width=pct+"%";
+  document.getElementById("goalTxt").textContent=`${done} / ${goal}（学習回数）`;
+  document.getElementById("bVocab").textContent=vocab().length+" 語";
+  document.getElementById("bRead").textContent=READING.length+" 問";
+  document.getElementById("bGram").textContent=GRAMMAR.length+" 問";
+  const hs=document.getElementById("hSync"); if(hs) hs.textContent=cloudConfigured()?"☁️ クラウド同期 ON":"";
+}
+
+/* ========================= VOCAB ========================= */
+let queue=[], cur=null, flipped=false;
+function buildQueue(){
+  const due=dueCards();
+  const fresh=newCards(Math.max(0, NEW_PER_DAY-META.daily.newDone));
+  // 復習を優先しつつ新出を混ぜる
+  queue=[...due, ...fresh];
+}
+function startVocab(){
+  ensureDaily(); buildQueue(); nextCard();
+}
+function nextCard(){
+  flipped=false;
+  const flash=document.getElementById("flash");
+  const act=document.getElementById("vocabActions");
+  if(queue.length===0){
+    document.getElementById("vocabStatus").textContent="完了 🎉";
+    flash.innerHTML=`<div class="empty">今日の単語は完了！<br><span class="sub">よく続けた。明日も同じ時間に。</span></div>`;
+    act.innerHTML=`<button class="btn primary" onclick="go('listen')">🎧 リスニングへ</button>`;
+    renderHomeBadges(); return;
+  }
+  cur=queue[0];
+  const s=st(cur.h);
+  document.getElementById("vocabStatus").textContent=(s.isNew||!SRS[cur.h]?"新出":"復習")+" ・ 残り "+queue.length;
+  flash.innerHTML=`<div class="hanzi">${cur.h}</div><div class="sub" style="margin-top:18px">タップで答えを表示</div>`;
+  flash.onclick=flip;
+  act.innerHTML=`<button class="btn primary" onclick="flip()">答えを見る</button>
+    <div class="btn-row" style="margin-top:8px"><button class="btn ghost" onclick="speak('${cur.h}')">🔊 発音</button></div>`;
+}
+function flip(){
+  if(flipped) return; flipped=true;
+  const flash=document.getElementById("flash");
+  flash.innerHTML=`<div class="hanzi">${cur.h}</div>
+    <div class="pinyin">${cur.p||""}</div>
+    <div class="mean">${cur.m||""}</div>
+    ${cur.e?`<div class="ex"><span class="exh">例:</span> ${cur.e}</div>`:""}`;
+  flash.onclick=null;
+  speak(cur.h);
+  document.getElementById("vocabActions").innerHTML=`
+    <div class="rate">
+      <button class="again" onclick="answer(1)">忘れた<br><small>＜1分</small></button>
+      <button class="hard" onclick="answer(2)">曖昧<br><small>短め</small></button>
+      <button class="good" onclick="answer(3)">覚えた<br><small>間隔↑</small></button>
+    </div>
+    <button class="btn ghost" style="margin-top:8px" onclick="speak('${cur.e||cur.h}')">🔊 例文/語</button>`;
+}
+function answer(grade){
+  rate(cur.h, grade);
+  queue.shift();
+  if(grade===1) queue.push(cur); // 忘れたものは末尾に再投入
+  nextCard();
+}
+function renderHomeBadges(){ /* keep home counts fresh after session */ }
+
+/* ========================= LISTEN ========================= */
+let lQueue=[], lCur=null;
+function startListen(){
+  const pool=vocab().filter(w=>SRS[w.h] && !SRS[w.h].isNew); // 既習優先
+  lQueue = (pool.length? pool : vocab()).slice().sort(()=>Math.random()-0.5);
+  listenNext();
+}
+function listenNext(){
+  document.getElementById("listenReveal").classList.add("hide");
+  if(lQueue.length===0){ lQueue=vocab().slice().sort(()=>Math.random()-0.5); }
+  lCur=lQueue.shift();
+  document.getElementById("lHanzi").textContent=lCur.h;
+  document.getElementById("lPinyin").textContent=lCur.p||"";
+  document.getElementById("lMean").textContent=lCur.m||"";
+  document.getElementById("listenActions").innerHTML=`
+    <div class="btn-row">
+      <button class="btn" onclick="document.getElementById('listenReveal').classList.remove('hide')">答えを表示</button>
+      <button class="btn primary" onclick="listenNext()">次へ →</button>
+    </div>`;
+  setTimeout(()=>listenPlay(),150);
+}
+function listenPlay(){ if(lCur) speak(lCur.e || lCur.h); }
+
+/* ========================= READ ========================= */
+let rIdx=0;
+function startRead(){ rIdx=0; renderRead(); }
+function renderRead(){
+  if(rIdx>=READING.length){
+    document.getElementById("readStatus").textContent="完了 🎉";
+    document.getElementById("readBody").innerHTML=`<div class="empty">読解 全${READING.length}問 終了！</div><button class="btn primary" onclick="startRead()">もう一度</button>`;
+    return;
+  }
+  const item=READING[rIdx];
+  document.getElementById("readStatus").textContent=`読解 ${rIdx+1} / ${READING.length}`;
+  let html=`<div class="passage">${item.text}</div>
+    <button class="btn ghost" style="margin-bottom:12px" onclick="speak(${JSON.stringify(item.text)})">🔊 本文を読む</button>
+    <div style="font-weight:700; margin-bottom:10px">${item.q}</div>`;
+  item.o.forEach((opt,i)=> html+=`<button class="opt" onclick="readPick(${i})">${String.fromCharCode(65+i)}. ${opt}</button>`);
+  html+=`<div id="readEx"></div>`;
+  document.getElementById("readBody").innerHTML=html;
+}
+function readPick(i){
+  const item=READING[rIdx];
+  const opts=document.querySelectorAll("#view-read .opt");
+  opts.forEach((b,idx)=>{ b.classList.add("disabled"); b.onclick=null; if(idx===item.a) b.classList.add("correct"); });
+  if(i!==item.a) opts[i].classList.add("wrong");
+  document.getElementById("readEx").innerHTML=`<div class="explain">${i===item.a?"✅ 正解！":"❌ 不正解"} ${item.ex}</div>
+    <button class="btn primary" style="margin-top:12px" onclick="rIdx++;renderRead()">次へ →</button>`;
+}
+
+/* ========================= GRAMMAR ========================= */
+let gIdx=0, gPick=[];
+function startGrammar(){ gIdx=0; renderGram(); }
+function renderGram(){
+  if(gIdx>=GRAMMAR.length){
+    document.getElementById("gramStatus").textContent="完了 🎉";
+    document.getElementById("gramBody").innerHTML=`<div class="empty">文法 全${GRAMMAR.length}問 終了！</div><button class="btn primary" onclick="startGrammar()">もう一度</button>`;
+    return;
+  }
+  const item=GRAMMAR[gIdx];
+  document.getElementById("gramStatus").textContent=`文法 ${gIdx+1} / ${GRAMMAR.length}・${item.type==="blank"?"空欄補充":"並べ替え"}`;
+  if(item.type==="blank"){
+    let html=`<div class="passage">${item.s.replace("____","<b style='color:var(--accent2)'>____</b>")}</div>`;
+    item.o.forEach((opt,i)=> html+=`<button class="opt" onclick="gramBlank(${i})">${String.fromCharCode(65+i)}. ${opt}</button>`);
+    html+=`<div id="gramEx"></div>`;
+    document.getElementById("gramBody").innerHTML=html;
+  } else {
+    gPick=[];
+    let html=`<div class="sub">日本語: ${item.tr}</div>
+      <div class="answerline" id="ansLine"><span class="sub">↓タップで語を並べる</span></div>
+      <div class="tokens" id="tokenPool"></div>
+      <div id="gramEx"></div>`;
+    document.getElementById("gramBody").innerHTML=html;
+    renderTokens();
+  }
+}
+function renderTokens(){
+  const item=GRAMMAR[gIdx];
+  const pool=document.getElementById("tokenPool");
+  const shuffled=item._sh || (item._sh=item.tokens.map((t,i)=>({t,i})).sort(()=>Math.random()-0.5));
+  pool.innerHTML="";
+  shuffled.forEach(o=>{
+    if(gPick.includes(o.i)) return;
+    const b=document.createElement("button"); b.className="token"; b.textContent=o.t;
+    b.onclick=()=>{ gPick.push(o.i); drawAns(); renderTokens(); };
+    pool.appendChild(b);
+  });
+  if(pool.children.length===0) checkOrder();
+}
+function drawAns(){
+  const item=GRAMMAR[gIdx];
+  const line=document.getElementById("ansLine");
+  line.innerHTML="";
+  gPick.forEach((idx,pos)=>{
+    const b=document.createElement("button"); b.className="token"; b.textContent=item.tokens[idx];
+    b.onclick=()=>{ gPick.splice(pos,1); drawAns(); renderTokens(); };
+    line.appendChild(b);
+  });
+  if(gPick.length===0) line.innerHTML=`<span class="sub">↓タップで語を並べる</span>`;
+}
+function checkOrder(){
+  const item=GRAMMAR[gIdx];
+  const made=gPick.map(i=>item.tokens[i]).join("");
+  const ok = made===item.a;
+  document.getElementById("gramEx").innerHTML=`<div class="explain">${ok?"✅ 正解！":"❌ 正解: <b>"+item.a+"</b>"}（${item.tr}）</div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn ghost" onclick="speak('${item.a}')">🔊 読む</button>
+      <button class="btn primary" onclick="gIdx++;renderGram()">次へ →</button>
+    </div>
+    ${ok?"":'<button class="btn ghost" style="margin-top:8px" onclick="gPick=[];drawAns();renderTokens();document.getElementById(\'gramEx\').innerHTML=\'\'">やり直す</button>'}`;
+}
+function gramBlank(i){
+  const item=GRAMMAR[gIdx];
+  const opts=document.querySelectorAll("#view-grammar .opt");
+  opts.forEach((b,idx)=>{ b.classList.add("disabled"); b.onclick=null; if(idx===item.a) b.classList.add("correct"); });
+  if(i!==item.a) opts[i].classList.add("wrong");
+  const full=item.s.replace("____", item.o[item.a]);
+  document.getElementById("gramEx").innerHTML=`<div class="explain">${i===item.a?"✅ 正解！":"❌ 不正解"} ${item.ex}</div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn ghost" onclick="speak('${full}')">🔊 全文</button>
+      <button class="btn primary" onclick="gIdx++;renderGram()">次へ →</button>
+    </div>`;
+}
+
+/* ========================= MANAGE ========================= */
+function renderManage(){
+  document.getElementById("cfgUrl").value=CFG.url||"";
+  document.getElementById("cfgKey").value=CFG.key||"";
+  document.getElementById("cfgCode").value=CFG.code||"";
+  setSyncStatus(cloudConfigured()?"ok":"off");
+  const v=vocab();
+  const learned=Object.values(SRS).filter(s=>!s.isNew).length;
+  document.getElementById("statBox").innerHTML=
+    `総単語数: <b>${v.length}</b>（シード${SEED.length} + 追加${USER.length}）<br>
+     学習開始済み: <b>${learned}</b> 語<br>
+     連続学習: <b>${META.streak}</b> 日 ・ 試験まで <b>${daysToExam()}</b> 日`;
+}
+function doImport(){
+  const raw=document.getElementById("importBox").value.trim();
+  if(!raw){ toast("テキストが空です"); return; }
+  const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let added=0;
+  lines.forEach(l=>{
+    const parts=l.split(/\t|,|，/).map(s=>s.trim()).filter(s=>s!=="");
+    if(parts.length<2) return;
+    const [h,p,m,e]=parts;
+    if(!h) return;
+    const idx=USER.findIndex(w=>w.h===h);
+    const obj={h, p:p||"", m:m||"", e:e||""};
+    if(idx>=0) USER[idx]=obj; else { USER.push(obj); added++; }
+  });
+  save(LS.user,USER); touch();
+  toast(added+" 語を追加しました（更新含む計"+lines.length+"行）");
+  document.getElementById("importBox").value="";
+  renderManage();
+}
+function doExport(){
+  const data={ exportedAt:new Date().toISOString(), user:USER, srs:SRS, meta:META };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="hsk5-trainer-backup-"+todayStr()+".json";
+  a.click();
+  toast("エクスポートしました");
+}
+function doRestore(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const d=JSON.parse(r.result);
+    if(d.user){ USER=d.user; save(LS.user,USER); }
+    if(d.srs){ SRS=d.srs; save(LS.srs,SRS); }
+    if(d.meta){ META=d.meta; save(LS.meta,META); }
+    touch(); toast("復元しました"); renderManage();
+  }catch(e){ toast("ファイルが不正です"); } };
+  r.readAsText(f);
+}
+function resetProgress(){
+  if(!confirm("学習進捗（SRS・連続日数）をリセットします。単語データは残ります。よろしいですか？")) return;
+  SRS={}; save(LS.srs,SRS);
+  META={lastActive:"", streak:0, daily:{date:"",newDone:0,reviewDone:0}, updatedAt:Date.now()}; save(LS.meta,META);
+  schedulePush(); toast("リセットしました"); renderManage();
+}
+
+/* ========================= toast ========================= */
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2200);
+}
+
+/* ========================= CLOUD SYNC (Supabase) ========================= */
+let pushTimer=null;
+function cloudConfigured(){ return !!(CFG.url && CFG.key && CFG.code); }
+function api(path){ return CFG.url.replace(/\/+$/,"")+"/rest/v1/rpc/"+path; }
+function hdrs(){ return {"Content-Type":"application/json", apikey:CFG.key, Authorization:"Bearer "+CFG.key}; }
+function touch(){ META.updatedAt=Date.now(); save(LS.meta,META); schedulePush(); }
+function schedulePush(){
+  if(!cloudConfigured()) return;
+  setSyncStatus("pending"); clearTimeout(pushTimer);
+  pushTimer=setTimeout(()=>{ cloudPush().then(()=>setSyncStatus("ok")).catch(()=>setSyncStatus("err")); }, 2500);
+}
+async function cloudPush(){
+  if(!cloudConfigured()) return;
+  const payload={ user:USER, srs:SRS, meta:META };
+  const res=await fetch(api("hsk_push"),{method:"POST",headers:hdrs(),body:JSON.stringify({p_id:CFG.code,p_data:payload})});
+  if(!res.ok) throw new Error("push "+res.status);
+}
+async function cloudPull(){
+  if(!cloudConfigured()) return null;
+  const res=await fetch(api("hsk_pull"),{method:"POST",headers:hdrs(),body:JSON.stringify({p_id:CFG.code})});
+  if(!res.ok) throw new Error("pull "+res.status);
+  return await res.json(); // payload object or null
+}
+function applyRemote(r){
+  if(!r) return false;
+  USER=r.user||USER; SRS=r.srs||SRS; META=r.meta||META;
+  save(LS.user,USER); save(LS.srs,SRS); save(LS.meta,META); return true;
+}
+async function cloudAutoSync(){
+  if(!cloudConfigured()){ setSyncStatus("off"); return; }
+  setSyncStatus("pending");
+  try{
+    const r=await cloudPull();
+    if(r && r.meta && (r.meta.updatedAt||0) > (META.updatedAt||0)){ applyRemote(r); toast("☁️ クラウドから最新を取得"); }
+    else { await cloudPush(); }
+    setSyncStatus("ok"); renderHome();
+  }catch(e){ setSyncStatus("err"); }
+}
+async function manualPull(){
+  if(!cloudConfigured()){ toast("先にクラウド設定を保存してください"); return; }
+  if(!confirm("クラウドの進捗でこの端末を上書きします。よろしいですか？")) return;
+  try{ const r=await cloudPull(); if(applyRemote(r)){ toast("取得しました"); renderHome(); renderManage(); } else toast("クラウドにまだデータがありません"); setSyncStatus("ok"); }
+  catch(e){ toast("取得に失敗（設定を確認）"); setSyncStatus("err"); }
+}
+async function manualPush(){
+  if(!cloudConfigured()){ toast("先にクラウド設定を保存してください"); return; }
+  try{ await cloudPush(); toast("クラウドに保存しました"); setSyncStatus("ok"); }
+  catch(e){ toast("保存に失敗（URL/キー/SQLを確認）"); setSyncStatus("err"); }
+}
+function genCode(){
+  const a=new Uint8Array(16); crypto.getRandomValues(a);
+  document.getElementById("cfgCode").value=Array.from(a).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function saveCfg(){
+  CFG={ url:document.getElementById("cfgUrl").value.trim(),
+        key:document.getElementById("cfgKey").value.trim(),
+        code:document.getElementById("cfgCode").value.trim() };
+  save(LS.cfg,CFG); toast("保存しました。同期します…"); cloudAutoSync();
+}
+function setSyncStatus(s){
+  const map={ ok:"☁️ 同期OK", pending:"⏳ 同期中…", err:"⚠️ 同期エラー（URL/キー/SQLを確認）", off:"☁️ 未設定（手動のみ／⚙️で設定）" };
+  const el=document.getElementById("syncStat"); if(el) el.textContent=map[s]||"";
+  const hs=document.getElementById("hSync"); if(hs) hs.textContent = cloudConfigured()? (map[s]||"") : "";
+}
+
+/* ========================= init ========================= */
+ensureDaily();
+renderHome();
+cloudAutoSync();
+</script>
+</body>
+</html>
