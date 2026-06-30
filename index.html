@@ -108,6 +108,12 @@
   .toast.show{opacity:1}
   a.link{color:var(--blue); text-decoration:none}
   .warnbox{font-size:13px; background:rgba(240,160,32,.1); border:1px solid #5b4a22; color:#ffce7a; border-radius:10px; padding:10px 12px}
+  /* 学習履歴チャート */
+  .chart{display:flex; align-items:flex-end; gap:4px; height:140px; padding-top:16px}
+  .barwrap{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%}
+  .bar{width:72%; background:linear-gradient(180deg,var(--accent2),var(--accent)); border-radius:4px 4px 0 0; min-height:2px; transition:height .3s}
+  .barval{font-size:9px; color:var(--sub); height:12px; line-height:12px}
+  .barlbl{font-size:9px; color:var(--sub); margin-top:3px}
 </style>
 </head>
 <body>
@@ -190,9 +196,10 @@
       <div class="sub" style="margin-bottom:8px">クイック</div>
       <button class="btn primary" style="margin-bottom:10px" onclick="homeSync()">🔄 今すぐ同期（PC↔スマホ）</button>
       <div class="btn-row">
-        <button class="btn" onclick="go('manage')">⚙️ 単語の追加・管理</button>
-        <button class="btn ghost" onclick="speak('你好，加油！')">🔊 音声テスト</button>
+        <button class="btn" onclick="go('stats')">📊 学習記録</button>
+        <button class="btn" onclick="go('manage')">⚙️ 管理</button>
       </div>
+      <button class="btn ghost" style="margin-top:8px" onclick="speak('你好，加油！')">🔊 音声テスト</button>
     </div>
     <p class="sub center" style="margin-top:18px"><span id="hSync"></span><br>作: あなた専用 / クラウド同期を設定すると PC↔スマホで進捗が自動で揃います（⚙️管理）</p>
   </section>
@@ -243,6 +250,29 @@
     <div class="card">
       <span class="pill" id="gramStatus"></span>
       <div id="gramBody"></div>
+    </div>
+    <button class="btn ghost" onclick="go('home')">← ホーム</button>
+  </section>
+
+  <!-- ===== STATS / HISTORY ===== -->
+  <section id="view-stats" class="hide">
+    <div class="card">
+      <h3>📊 学習記録</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="n good" id="stStreak">0</div><div class="l">連続学習 🔥</div></div>
+        <div class="stat"><div class="n" id="stTotal">0</div><div class="l">累計カード数</div></div>
+      </div>
+      <div class="sub" style="margin:14px 0 4px">直近14日の学習量（カード数）</div>
+      <div id="histChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>📝 模擬テスト記録</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="n warn" id="bestVocab">–</div><div class="l">単語ベスト</div></div>
+        <div class="stat"><div class="n warn" id="bestAll">–</div><div class="l">総合ベスト</div></div>
+      </div>
+      <div class="sub" style="margin:12px 0 6px">最近の結果（最大10件）</div>
+      <div id="mockHistList"></div>
     </div>
     <button class="btn ghost" onclick="go('home')">← ホーム</button>
   </section>
@@ -521,6 +551,7 @@ function rate(h, grade){ // grade: 1 again / 2 hard / 3 good
   s.isNew=false;
   SRS[h]=s; save(LS.srs,SRS);
   if(wasNew) META.daily.newDone++; else META.daily.reviewDone++;
+  META.hist=META.hist||{}; const _t=todayStr(); META.hist[_t]=(META.hist[_t]||0)+1; // 学習履歴
   save(LS.meta,META); bumpStreak(); touch();
 }
 
@@ -541,7 +572,7 @@ function speak(text, rate){
 }
 
 /* ========================= navigation ========================= */
-const VIEWS=["home","vocab","listen","read","grammar","mock","manage"];
+const VIEWS=["home","vocab","listen","read","grammar","mock","stats","manage"];
 function go(v){
   VIEWS.forEach(x=>{ const el=document.getElementById("view-"+x); if(el) el.classList.toggle("hide", x!==v); });
   ["home","vocab","listen","read","grammar"].forEach(x=>{ const n=document.getElementById("nav-"+x); if(n) n.classList.toggle("on", x===v); });
@@ -552,6 +583,7 @@ function go(v){
   if(v==="read") startRead();
   if(v==="grammar") startGrammar();
   if(v==="mock") openMock();
+  if(v==="stats") renderStats();
   if(v==="manage") renderManage();
 }
 
@@ -580,6 +612,35 @@ function renderHome(){
   const hs=document.getElementById("hSync"); if(hs) hs.textContent=cloudConfigured()?"☁️ クラウド同期 ON":"";
 }
 function onLevelChange(){ setStudyLevel(document.getElementById("lvSel").value); renderHome(); }
+
+/* ========================= STATS / HISTORY ========================= */
+function lastNDates(n){
+  const out=[];
+  for(let i=n-1;i>=0;i--){ const d=new Date(Date.now()-i*86400000);
+    out.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")); }
+  return out;
+}
+function renderStats(){
+  document.getElementById("stStreak").textContent=META.streak||0;
+  const hist=META.hist||{};
+  document.getElementById("stTotal").textContent=Object.values(hist).reduce((a,b)=>a+b,0);
+  const days=lastNDates(14);
+  const max=Math.max(1,...days.map(d=>hist[d]||0));
+  document.getElementById("histChart").innerHTML=days.map(d=>{
+    const c=hist[d]||0, h=Math.round(c/max*100);
+    return `<div class="barwrap"><div class="barval">${c||""}</div><div class="bar" style="height:${h}%"></div><div class="barlbl">${parseInt(d.slice(8),10)}</div></div>`;
+  }).join("");
+  const mocks=META.mocks||[];
+  const best=sc=>{ const a=mocks.filter(m=>m.scope===sc); return a.length? Math.max(...a.map(m=>m.pct))+"%":"–"; };
+  document.getElementById("bestVocab").textContent=best("vocab");
+  document.getElementById("bestAll").textContent=best("all");
+  const recent=mocks.slice(-10).reverse();
+  document.getElementById("mockHistList").innerHTML = recent.length ? recent.map(m=>{
+    const lbl=m.scope==="all"?"総合":"単語";
+    const t=Math.floor(m.sec/60)+"分"+String(m.sec%60).padStart(2,"0")+"秒";
+    return `<div class="explain" style="margin-bottom:6px">${m.date} ・ ${lbl} ・ <b>${m.score}/${m.n}（${m.pct}%）</b> ・ ${t}</div>`;
+  }).join("") : `<div class="empty">まだ記録がありません。模擬テストをやってみよう</div>`;
+}
 
 /* ========================= VOCAB ========================= */
 let queue=[], cur=null, flipped=false;
@@ -861,8 +922,15 @@ function finishMock(){
   const s=Math.floor((Date.now()-mockT0)/1000);
   const time=Math.floor(s/60)+"分"+String(s%60).padStart(2,"0")+"秒";
   const pct=Math.round(mockScore/mockQ.length*100);
+  // 記録＆自己ベスト判定
+  META.mocks=META.mocks||[];
+  const prevBest=Math.max(0,...META.mocks.filter(m=>m.scope===mockScope).map(m=>m.pct));
+  META.mocks.push({date:todayStr(), scope:mockScope, n:mockQ.length, score:mockScore, pct, sec:s});
+  if(META.mocks.length>50) META.mocks=META.mocks.slice(-50);
+  save(LS.meta,META); touch();
+  const isBest = pct>prevBest;
   document.getElementById("mockQuiz").classList.add("hide");
-  let html=`<h3>結果</h3>
+  let html=`<h3>結果${isBest?' 🏆 <span style="color:var(--good)">自己ベスト更新！</span>':''}</h3>`+`
     <div class="stat-grid">
       <div class="stat"><div class="n ${pct>=80?'good':pct>=60?'warn':'accent'}">${pct}%</div><div class="l">正答率</div></div>
       <div class="stat"><div class="n">${mockScore}/${mockQ.length}</div><div class="l">正解数</div></div>
@@ -879,7 +947,7 @@ function finishMock(){
       }
     });
   } else { html+=`<p style="margin-top:12px">全問正解！🎉 お見事。</p>`; }
-  html+=`<div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openMock()">もう一度</button></div>`;
+  html+=`<div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openMock()">もう一度</button><button class="btn" onclick="go('stats')">📊 記録を見る</button></div>`;
   const r=document.getElementById("mockResult"); r.innerHTML=html; r.classList.remove("hide");
 }
 
