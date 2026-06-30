@@ -134,6 +134,22 @@
       </div>
     </div>
 
+    <div class="card" style="padding:12px 16px; margin-bottom:14px">
+      <div style="display:flex; align-items:center; gap:10px">
+        <span class="sub" style="white-space:nowrap">学習する級</span>
+        <select id="lvSel" onchange="onLevelChange()" style="flex:1; width:auto">
+          <option value="all">すべて</option>
+          <option value="1">HSK1級</option>
+          <option value="2">HSK2級</option>
+          <option value="3">HSK3級</option>
+          <option value="4">HSK4級</option>
+          <option value="5">HSK5級</option>
+          <option value="6">HSK6級</option>
+        </select>
+      </div>
+      <div class="sub" id="lvCount" style="margin-top:6px"></div>
+    </div>
+
     <h3 style="margin:6px 2px 10px">学習メニュー</h3>
     <div class="tiles">
       <button class="tile" onclick="go('vocab')">
@@ -239,8 +255,18 @@
     </div>
     <div class="card">
       <h3>単語の追加（インポート）</h3>
-      <p class="sub">1行 = 1語。区切りは「カンマ」「タブ」どれでもOK。<br>形式: <b>漢字, 拼音, 意味, 例文(任意)</b></p>
-      <div class="warnbox">⚠️ シード単語は厳選版です。網羅版にするには、信頼できるHSK5単語リストをここに貼って取り込んでください（推測データは混ぜない方針）。</div>
+      <p class="sub">1行 = 1語。区切りは「カンマ」「タブ」どれでもOK。<br>形式: <b>漢字, 拼音, 意味, 級(任意), 例文(任意)</b></p>
+      <div class="warnbox">⚠️ シード単語は厳選版です。網羅版にするには、信頼できる単語リストをここに貼ってください（推測データは混ぜない方針）。<b>級ごとに分けて</b>取り込むと管理しやすい。</div>
+      <label class="fl">この取り込みに付ける級（リストに級列が無いとき適用）</label>
+      <select id="impLevel" style="width:auto">
+        <option value="">指定なし</option>
+        <option value="1">HSK1級</option>
+        <option value="2">HSK2級</option>
+        <option value="3">HSK3級</option>
+        <option value="4">HSK4級</option>
+        <option value="5" selected>HSK5級</option>
+        <option value="6">HSK6級</option>
+      </select>
       <label class="fl">貼り付け</label>
       <textarea id="importBox" placeholder="安排, ānpái, 手配する・段取りする, 我来安排时间。
 抱怨, bàoyuàn, 不平を言う"></textarea>
@@ -418,12 +444,24 @@ let META = load(LS.meta, {lastActive:"", streak:0, daily:{date:"", newDone:0, re
 let SRS  = load(LS.srs, {});
 let USER = load(LS.user, []);
 let CFG  = load(LS.cfg, {url:"", key:"", code:""});
+SEED.forEach(w=>{ if(w.lv==null) w.lv=5; }); // シードはHSK5
+
+/* 学習レベル（級フィルタ） */
+function studyLevel(){ return localStorage.getItem("hsk5.level") || "all"; }
+function setStudyLevel(v){ localStorage.setItem("hsk5.level", v); }
+function levelMatch(w){ const L=studyLevel(); return L==="all" || String(w.lv||"")===String(L); }
 
 function vocab(){ // merge seed + user, dedupe by hanzi (user overrides)
   const map = {};
   SEED.forEach(w=> map[w.h]=w);
   USER.forEach(w=> map[w.h]=Object.assign({}, map[w.h], w));
   return Object.values(map);
+}
+function vocabLv(){ return vocab().filter(levelMatch); } // 現在の級のみ
+function levelCounts(){ // {all, 1..6}
+  const c={all:0,1:0,2:0,3:0,4:0,5:0,6:0};
+  vocab().forEach(w=>{ c.all++; const k=String(w.lv||""); if(c[k]!=null) c[k]++; });
+  return c;
 }
 function ensureDaily(){
   const t=todayStr();
@@ -442,12 +480,12 @@ function bumpStreak(){
 function st(h){ return SRS[h] || {reps:0, interval:0, ease:2.5, due:0, isNew:true}; }
 function daysToExam(){ return Math.max(0, Math.ceil((new Date(EXAM_DATE) - new Date(todayStr()))/86400000)); }
 
-function dueCards(){ // 復習対象（既習で期限到来）
+function dueCards(){ // 復習対象（既習で期限到来・現在の級）
   const now=Date.now();
-  return vocab().filter(w=>{ const s=SRS[w.h]; return s && !s.isNew && s.due<=now; });
+  return vocab().filter(w=>{ if(!levelMatch(w)) return false; const s=SRS[w.h]; return s && !s.isNew && s.due<=now; });
 }
-function newCards(limit){ // 未学習
-  const all=vocab().filter(w=> !SRS[w.h] || SRS[w.h].isNew);
+function newCards(limit){ // 未学習（現在の級）
+  const all=vocab().filter(w=> levelMatch(w) && (!SRS[w.h] || SRS[w.h].isNew));
   return limit? all.slice(0,limit) : all;
 }
 function rate(h, grade){ // grade: 1 again / 2 hard / 3 good
@@ -507,11 +545,16 @@ function renderHome(){
   const pct=goal? Math.min(100, Math.round(done/goal*100)) : 0;
   document.getElementById("goalBar").style.width=pct+"%";
   document.getElementById("goalTxt").textContent=`${done} / ${goal}（学習回数）`;
-  document.getElementById("bVocab").textContent=vocab().length+" 語";
+  const sel=document.getElementById("lvSel"); if(sel) sel.value=studyLevel();
+  const c=levelCounts(); const L=studyLevel();
+  const lvc=document.getElementById("lvCount");
+  if(lvc) lvc.textContent = (L==="all"? `全 ${c.all} 語` : `HSK${L}級: ${c[L]||0} 語`) + `（総 ${c.all} 語）`;
+  document.getElementById("bVocab").textContent=vocabLv().length+" 語";
   document.getElementById("bRead").textContent=READING.length+" 問";
   document.getElementById("bGram").textContent=GRAMMAR.length+" 問";
   const hs=document.getElementById("hSync"); if(hs) hs.textContent=cloudConfigured()?"☁️ クラウド同期 ON":"";
 }
+function onLevelChange(){ setStudyLevel(document.getElementById("lvSel").value); renderHome(); }
 
 /* ========================= VOCAB ========================= */
 let queue=[], cur=null, flipped=false;
@@ -570,8 +613,9 @@ function renderHomeBadges(){ /* keep home counts fresh after session */ }
 /* ========================= LISTEN ========================= */
 let lQueue=[], lCur=null;
 function startListen(){
-  const pool=vocab().filter(w=>SRS[w.h] && !SRS[w.h].isNew); // 既習優先
-  lQueue = (pool.length? pool : vocab()).slice().sort(()=>Math.random()-0.5);
+  const base=vocabLv();
+  const pool=base.filter(w=>SRS[w.h] && !SRS[w.h].isNew); // 既習優先
+  lQueue = (pool.length? pool : base).slice().sort(()=>Math.random()-0.5);
   listenNext();
 }
 function listenNext(){
@@ -709,13 +753,20 @@ function doImport(){
   if(!raw){ toast("テキストが空です"); return; }
   const lines=raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   let added=0;
+  const defLv=document.getElementById("impLevel").value||"";
   lines.forEach(l=>{
     const parts=l.split(/\t|,|，/).map(s=>s.trim()).filter(s=>s!=="");
     if(parts.length<2) return;
-    const [h,p,m,e]=parts;
+    const h=parts[0], p=parts[1], m=parts[2]||"";
+    let lv=defLv, e="";
+    // 4列目が「級(1-6 / HSK3 / 3级)」なら級、そうでなければ例文
+    if(parts[3]!=null){
+      const ml=String(parts[3]).match(/^(?:HSK)?\s*([1-6])\s*级?$/i);
+      if(ml){ lv=ml[1]; e=parts[4]||""; } else { e=parts[3]; }
+    }
     if(!h) return;
     const idx=USER.findIndex(w=>w.h===h);
-    const obj={h, p:p||"", m:m||"", e:e||""};
+    const obj={h, p:p||"", m:m||"", e:e||"", lv:lv||""};
     if(idx>=0) USER[idx]=obj; else { USER.push(obj); added++; }
   });
   save(LS.user,USER); touch();
