@@ -146,6 +146,17 @@
           <option value="5">HSK5級</option>
         </select>
       </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:8px">
+        <span class="sub" style="white-space:nowrap">1日の新出語</span>
+        <select id="npdSel" onchange="setNewPerDay(this.value)" style="flex:1; width:auto">
+          <option value="10">10語/日</option>
+          <option value="15">15語/日</option>
+          <option value="20">20語/日</option>
+          <option value="30">30語/日</option>
+          <option value="50">50語/日</option>
+          <option value="100">100語/日</option>
+        </select>
+      </div>
       <div class="sub" id="lvCount" style="margin-top:6px"></div>
     </div>
 
@@ -198,7 +209,11 @@
   <!-- ===== LISTEN ===== -->
   <section id="view-listen" class="hide">
     <div class="card center">
-      <span class="pill">リスニング（音声→意味）</span>
+      <div class="btn-row" style="margin-bottom:12px">
+        <button class="btn" id="lmWord" onclick="setListenMode('word')">単語</button>
+        <button class="btn ghost" id="lmSent" onclick="setListenMode('sent')">例文・文章</button>
+      </div>
+      <span class="pill" id="listenPill">単語リスニング（音声→意味）</span>
       <div class="flash">
         <button class="speakbtn" onclick="listenPlay()">🔊</button>
         <div class="sub" style="margin-top:12px">タップで再生（繰り返し可）</div>
@@ -234,8 +249,12 @@
   <!-- ===== MOCK TEST ===== -->
   <section id="view-mock" class="hide">
     <div class="card" id="mockStart">
-      <h3>📝 模擬テスト（単語）</h3>
-      <p class="sub">「学習する級」から出題。漢字を見て意味を4択で選ぶ。時間も計測します。</p>
+      <h3>📝 模擬テスト</h3>
+      <p class="sub">出題範囲を選んで問題数をタップ。時間も計測します。単語は「学習する級」から出題。</p>
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn" id="msVocab" onclick="setMockScope('vocab')">単語のみ</button>
+        <button class="btn ghost" id="msAll" onclick="setMockScope('all')">総合（単語＋読解＋文法）</button>
+      </div>
       <div class="btn-row">
         <button class="btn" onclick="startMock(10)">10問</button>
         <button class="btn primary" onclick="startMock(20)">20問</button>
@@ -337,7 +356,8 @@
    試験日: 2026-07-18
    ========================================================= */
 const EXAM_DATE = "2026-07-18";
-const NEW_PER_DAY = 15;          // 1日の新出語上限（変更可）
+let NEW_PER_DAY = parseInt(localStorage.getItem("hsk5.newPerDay")||"15",10); // 1日の新出語上限（UIで変更）
+function setNewPerDay(n){ NEW_PER_DAY=Math.max(1,parseInt(n,10)||15); localStorage.setItem("hsk5.newPerDay",NEW_PER_DAY); renderHome(); }
 const LS = {
   user:  "hsk5.vocab.user",      // ユーザー追加語 [{h,p,m,e}]
   srs:   "hsk5.srs",             // h -> {reps,interval,ease,due}
@@ -510,11 +530,11 @@ function pickVoice(){
   zhVoice = vs.find(v=>/zh[-_]?CN/i.test(v.lang)) || vs.find(v=>/^zh/i.test(v.lang)) || null;
 }
 if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
-function speak(text){
+function speak(text, rate){
   if(!('speechSynthesis' in window)){ toast("この端末は音声に未対応"); return; }
   speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(text);
-  u.lang="zh-CN"; if(zhVoice) u.voice=zhVoice; u.rate=0.9;
+  u.lang="zh-CN"; if(zhVoice) u.voice=zhVoice; u.rate=rate||0.9;
   if(!zhVoice) toast("中国語音声が見つかりません（端末に追加を）");
   speechSynthesis.speak(u);
 }
@@ -549,6 +569,7 @@ function renderHome(){
   document.getElementById("goalBar").style.width=pct+"%";
   document.getElementById("goalTxt").textContent=`${done} / ${goal}（学習回数）`;
   const sel=document.getElementById("lvSel"); if(sel) sel.value=studyLevel();
+  const np=document.getElementById("npdSel"); if(np) np.value=String(NEW_PER_DAY);
   const c=levelCounts(); const L=studyLevel();
   const lvc=document.getElementById("lvCount");
   if(lvc) lvc.textContent = (L==="all"? `全 ${c.all} 語` : `HSK${L}級: ${c[L]||0} 語`) + `（総 ${c.all} 語）`;
@@ -614,28 +635,59 @@ function answer(grade){
 function renderHomeBadges(){ /* keep home counts fresh after session */ }
 
 /* ========================= LISTEN ========================= */
-let lQueue=[], lCur=null;
+let lQueue=[], lCur=null, listenMode="word";
+function sentencePool(){ // 例文・文章リスニング用（既存の正確な文を活用）
+  const arr=[];
+  GRAMMAR.forEach(g=>{
+    if(g.type==="order") arr.push({zh:g.a, ja:g.tr});
+    else arr.push({zh:g.s.replace("____", g.o[g.a]), ja:g.ex});
+  });
+  READING.forEach(r=> arr.push({zh:r.text, ja:"（読解文）"+r.q}));
+  return arr;
+}
+function updListenToggle(){
+  document.getElementById("lmWord").className="btn"+(listenMode==="word"?"":" ghost");
+  document.getElementById("lmSent").className="btn"+(listenMode==="sent"?"":" ghost");
+  document.getElementById("listenPill").textContent=(listenMode==="word"?"単語リスニング（音声→意味）":"例文・文章リスニング（音声→文・訳）");
+}
+function setListenMode(m){ listenMode=m; startListen(); }
 function startListen(){
-  const base=vocabLv();
-  const pool=base.filter(w=>SRS[w.h] && !SRS[w.h].isNew); // 既習優先
-  lQueue = (pool.length? pool : base).slice().sort(()=>Math.random()-0.5);
+  updListenToggle();
+  document.getElementById("listenReveal").classList.add("hide");
+  if(listenMode==="sent"){
+    lQueue = sentencePool().sort(()=>Math.random()-0.5);
+  } else {
+    const base=vocabLv();
+    const pool=base.filter(w=>SRS[w.h] && !SRS[w.h].isNew); // 既習優先
+    lQueue = (pool.length? pool : base).slice().sort(()=>Math.random()-0.5);
+  }
   listenNext();
 }
 function listenNext(){
   document.getElementById("listenReveal").classList.add("hide");
-  if(lQueue.length===0){ lQueue=vocab().slice().sort(()=>Math.random()-0.5); }
+  if(lQueue.length===0){ lQueue=(listenMode==="sent"? sentencePool(): vocabLv()).slice().sort(()=>Math.random()-0.5); }
   lCur=lQueue.shift();
-  document.getElementById("lHanzi").textContent=lCur.h;
-  document.getElementById("lPinyin").textContent=lCur.p||"";
-  document.getElementById("lMean").textContent=lCur.m||"";
+  const elH=document.getElementById("lHanzi");
+  if(listenMode==="sent"){
+    elH.textContent=lCur.zh; elH.style.fontSize=(lCur.zh.length>18?"20px":"30px"); elH.style.lineHeight="1.7";
+    document.getElementById("lPinyin").textContent="";
+    document.getElementById("lMean").textContent=lCur.ja||"";
+  } else {
+    elH.textContent=lCur.h; elH.style.fontSize="48px"; elH.style.lineHeight="1.1";
+    document.getElementById("lPinyin").textContent=lCur.p||"";
+    document.getElementById("lMean").textContent=lCur.m||"";
+  }
   document.getElementById("listenActions").innerHTML=`
     <div class="btn-row">
+      <button class="btn" onclick="listenPlaySlow()">🐢 ゆっくり</button>
       <button class="btn" onclick="document.getElementById('listenReveal').classList.remove('hide')">答えを表示</button>
       <button class="btn primary" onclick="listenNext()">次へ →</button>
     </div>`;
   setTimeout(()=>listenPlay(),150);
 }
-function listenPlay(){ if(lCur) speak(lCur.h); } // 単語に統一（例文と混在させない）
+function listenText(){ return listenMode==="sent" ? (lCur&&lCur.zh) : (lCur&&lCur.h); }
+function listenPlay(){ const t=listenText(); if(t) speak(t); }
+function listenPlaySlow(){ const t=listenText(); if(t) speak(t,0.55); }
 
 /* ========================= READ ========================= */
 let rIdx=0;
@@ -739,24 +791,41 @@ function gramBlank(i){
 }
 
 /* ========================= MOCK TEST ========================= */
-let mockQ=[], mockIdx=0, mockScore=0, mockWrong=[], mockT0=0, mockTimerId=null;
+let mockQ=[], mockIdx=0, mockScore=0, mockWrong=[], mockT0=0, mockTimerId=null, mockScope="vocab";
+function rand(){ return Math.random()-0.5; }
+function setMockScope(s){
+  mockScope=s;
+  document.getElementById("msVocab").className="btn"+(s==="vocab"?"":" ghost");
+  document.getElementById("msAll").className="btn"+(s==="all"?"":" ghost");
+}
 function openMock(){
   clearInterval(mockTimerId);
   document.getElementById("mockQuiz").classList.add("hide");
   document.getElementById("mockResult").classList.add("hide");
   document.getElementById("mockStart").classList.remove("hide");
+  setMockScope(mockScope);
+}
+function buildVocabQ(pool, w){
+  const distract=pool.filter(x=>x.h!==w.h && x.m!==w.m).sort(rand).slice(0,3).map(x=>x.m);
+  const opts=[w.m,...distract].sort(rand);
+  return { type:"vocab", w, prompt:w.h, sub:w.p||"", opts, a:opts.indexOf(w.m) };
 }
 function startMock(n){
-  const pool=vocabLv().filter(w=>w.m);
-  if(pool.length<4){ toast("この級の単語が4語以上必要です（インポートで追加を）"); return; }
-  n=Math.min(n||20, pool.length);
-  const sh=pool.slice().sort(()=>Math.random()-0.5);
-  mockQ=sh.slice(0,n).map(w=>{
-    const distract=pool.filter(x=>x.h!==w.h && x.m!==w.m).sort(()=>Math.random()-0.5).slice(0,3).map(x=>x.m);
-    const opts=[w.m,...distract].sort(()=>Math.random()-0.5);
-    return { w, opts, a:opts.indexOf(w.m) };
-  });
-  mockIdx=0; mockScore=0; mockWrong=[];
+  n=n||20;
+  const vp=vocabLv().filter(w=>w.m);
+  let qs=[];
+  if(mockScope==="vocab"){
+    if(vp.length<4){ toast("この級の単語が4語以上必要です"); return; }
+    qs=vp.slice().sort(rand).slice(0,Math.min(n,vp.length)).map(w=>buildVocabQ(vp,w));
+  } else {
+    let pool=[];
+    READING.forEach(r=> pool.push({type:"read", prompt:r.text, sub:r.q, opts:r.o, a:r.a, ex:r.ex}));
+    GRAMMAR.filter(g=>g.type==="blank").forEach(g=> pool.push({type:"gram", prompt:g.s, sub:"空欄に入る語は？", opts:g.o, a:g.a, ex:g.ex}));
+    if(vp.length>=4) vp.slice().sort(rand).slice(0,n).forEach(w=> pool.push(buildVocabQ(vp,w)));
+    qs=pool.sort(rand).slice(0,n);
+  }
+  if(!qs.length){ toast("出題できる問題がありません"); return; }
+  mockQ=qs; mockIdx=0; mockScore=0; mockWrong=[];
   document.getElementById("mockStart").classList.add("hide");
   document.getElementById("mockResult").classList.add("hide");
   document.getElementById("mockQuiz").classList.remove("hide");
@@ -770,8 +839,11 @@ function updMockTimer(){
 function renderMockQ(){
   const q=mockQ[mockIdx];
   document.getElementById("mockProg").textContent=`${mockIdx+1} / ${mockQ.length}`;
-  document.getElementById("mockHanzi").textContent=q.w.h;
-  document.getElementById("mockPinyin").textContent=q.w.p||"";
+  const el=document.getElementById("mockHanzi");
+  el.textContent=q.prompt;
+  el.style.fontSize = q.type==="vocab" ? "52px" : (q.prompt.length>16 ? "18px" : "26px");
+  el.style.lineHeight = q.type==="vocab" ? "1.1" : "1.7";
+  document.getElementById("mockPinyin").textContent=q.sub||"";
   let html="";
   q.opts.forEach((o,i)=> html+=`<button class="opt" onclick="mockPick(${i})">${String.fromCharCode(65+i)}. ${o}</button>`);
   document.getElementById("mockOpts").innerHTML=html;
@@ -796,8 +868,15 @@ function finishMock(){
     </div>
     <p class="sub" style="margin-top:10px">所要時間: ${time}</p>`;
   if(mockWrong.length){
-    html+=`<h3 style="margin-top:14px">復習（間違えた語）</h3>`;
-    mockWrong.forEach(q=> html+=`<div class="explain" style="margin-bottom:6px"><b>${q.w.h}</b> ${q.w.p||""} … ${q.w.m} <button class="btn ghost" style="width:auto; padding:3px 10px; display:inline-block" onclick="speak('${q.w.h}')">🔊</button></div>`);
+    html+=`<h3 style="margin-top:14px">復習（間違えた問題）</h3>`;
+    mockWrong.forEach(q=>{
+      if(q.type==="vocab"){
+        html+=`<div class="explain" style="margin-bottom:6px"><b>${q.w.h}</b> ${q.w.p||""} … ${q.w.m} <button class="btn ghost" style="width:auto; padding:3px 10px; display:inline-block" onclick="speak('${q.w.h}')">🔊</button></div>`;
+      } else {
+        const p=q.prompt.length>34? q.prompt.slice(0,34)+"…" : q.prompt;
+        html+=`<div class="explain" style="margin-bottom:6px">${p}<br>正解: <b>${q.opts[q.a]}</b>${q.ex?" — "+q.ex:""}</div>`;
+      }
+    });
   } else { html+=`<p style="margin-top:12px">全問正解！🎉 お見事。</p>`; }
   html+=`<div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openMock()">もう一度</button></div>`;
   const r=document.getElementById("mockResult"); r.innerHTML=html; r.classList.remove("hide");
