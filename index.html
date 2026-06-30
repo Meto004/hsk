@@ -188,6 +188,7 @@
 
     <div class="card" style="margin-top:14px">
       <div class="sub" style="margin-bottom:8px">クイック</div>
+      <button class="btn primary" style="margin-bottom:10px" onclick="homeSync()">🔄 今すぐ同期（PC↔スマホ）</button>
       <div class="btn-row">
         <button class="btn" onclick="go('manage')">⚙️ 単語の追加・管理</button>
         <button class="btn ghost" onclick="speak('你好，加油！')">🔊 音声テスト</button>
@@ -994,6 +995,16 @@ async function cloudAutoSync(){
     else { await cloudPush(); }
     setSyncStatus("ok"); renderHome();
   }catch(e){ setSyncStatus("err"); }
+}
+async function homeSync(){
+  if(!cloudConfigured()){ toast("⚙️管理でクラウド同期を設定してください"); go("manage"); return; }
+  toast("⏳ 同期中…"); setSyncStatus("pending");
+  try{
+    const r=await cloudPull();
+    if(r && r.meta && (r.meta.updatedAt||0) > (META.updatedAt||0)){ applyRemote(r); renderHome(); toast("☁️ 最新を取得しました"); }
+    else { await cloudPush(); toast("☁️ クラウドに保存しました"); }
+    setSyncStatus("ok");
+  }catch(e){ toast("⚠️ 同期に失敗（設定を確認）"); setSyncStatus("err"); }
 }
 async function manualPull(){
   if(!cloudConfigured()){ toast("先にクラウド設定を保存してください"); return; }
