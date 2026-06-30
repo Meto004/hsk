@@ -144,7 +144,6 @@
           <option value="3">HSK3級</option>
           <option value="4">HSK4級</option>
           <option value="5">HSK5級</option>
-          <option value="6">HSK6級</option>
         </select>
       </div>
       <div class="sub" id="lvCount" style="margin-top:6px"></div>
@@ -173,6 +172,8 @@
         <div class="badge" id="bGram">– 問</div>
       </button>
     </div>
+
+    <button class="btn primary" style="margin-top:14px" onclick="go('mock')">📝 模擬テスト（本番形式で腕試し）</button>
 
     <div class="card" style="margin-top:14px">
       <div class="sub" style="margin-bottom:8px">クイック</div>
@@ -230,6 +231,31 @@
     <button class="btn ghost" onclick="go('home')">← ホーム</button>
   </section>
 
+  <!-- ===== MOCK TEST ===== -->
+  <section id="view-mock" class="hide">
+    <div class="card" id="mockStart">
+      <h3>📝 模擬テスト（単語）</h3>
+      <p class="sub">「学習する級」から出題。漢字を見て意味を4択で選ぶ。時間も計測します。</p>
+      <div class="btn-row">
+        <button class="btn" onclick="startMock(10)">10問</button>
+        <button class="btn primary" onclick="startMock(20)">20問</button>
+        <button class="btn" onclick="startMock(30)">30問</button>
+      </div>
+    </div>
+    <div class="card hide" id="mockQuiz">
+      <div style="display:flex; justify-content:space-between" class="sub">
+        <span id="mockProg"></span><span id="mockTimer">0:00</span>
+      </div>
+      <div class="flash" style="min-height:120px">
+        <div class="hanzi" id="mockHanzi" style="font-size:52px"></div>
+        <div class="pinyin" id="mockPinyin"></div>
+      </div>
+      <div id="mockOpts"></div>
+    </div>
+    <div class="card hide" id="mockResult"></div>
+    <button class="btn ghost" style="margin-top:8px" onclick="go('home')">← ホーム</button>
+  </section>
+
   <!-- ===== MANAGE ===== -->
   <section id="view-manage" class="hide">
     <div class="card">
@@ -265,7 +291,6 @@
         <option value="3">HSK3級</option>
         <option value="4">HSK4級</option>
         <option value="5" selected>HSK5級</option>
-        <option value="6">HSK6級</option>
       </select>
       <label class="fl">貼り付け</label>
       <textarea id="importBox" placeholder="安排, ānpái, 手配する・段取りする, 我来安排时间。
@@ -518,7 +543,7 @@ function speak(text){
 }
 
 /* ========================= navigation ========================= */
-const VIEWS=["home","vocab","listen","read","grammar","manage"];
+const VIEWS=["home","vocab","listen","read","grammar","mock","manage"];
 function go(v){
   VIEWS.forEach(x=>{ const el=document.getElementById("view-"+x); if(el) el.classList.toggle("hide", x!==v); });
   ["home","vocab","listen","read","grammar"].forEach(x=>{ const n=document.getElementById("nav-"+x); if(n) n.classList.toggle("on", x===v); });
@@ -528,6 +553,7 @@ function go(v){
   if(v==="listen") startListen();
   if(v==="read") startRead();
   if(v==="grammar") startGrammar();
+  if(v==="mock") openMock();
   if(v==="manage") renderManage();
 }
 
@@ -632,7 +658,7 @@ function listenNext(){
     </div>`;
   setTimeout(()=>listenPlay(),150);
 }
-function listenPlay(){ if(lCur) speak(lCur.e || lCur.h); }
+function listenPlay(){ if(lCur) speak(lCur.h); } // 単語に統一（例文と混在させない）
 
 /* ========================= READ ========================= */
 let rIdx=0;
@@ -733,6 +759,71 @@ function gramBlank(i){
       <button class="btn ghost" onclick="speak('${full}')">🔊 全文</button>
       <button class="btn primary" onclick="gIdx++;renderGram()">次へ →</button>
     </div>`;
+}
+
+/* ========================= MOCK TEST ========================= */
+let mockQ=[], mockIdx=0, mockScore=0, mockWrong=[], mockT0=0, mockTimerId=null;
+function openMock(){
+  clearInterval(mockTimerId);
+  document.getElementById("mockQuiz").classList.add("hide");
+  document.getElementById("mockResult").classList.add("hide");
+  document.getElementById("mockStart").classList.remove("hide");
+}
+function startMock(n){
+  const pool=vocabLv().filter(w=>w.m);
+  if(pool.length<4){ toast("この級の単語が4語以上必要です（インポートで追加を）"); return; }
+  n=Math.min(n||20, pool.length);
+  const sh=pool.slice().sort(()=>Math.random()-0.5);
+  mockQ=sh.slice(0,n).map(w=>{
+    const distract=pool.filter(x=>x.h!==w.h && x.m!==w.m).sort(()=>Math.random()-0.5).slice(0,3).map(x=>x.m);
+    const opts=[w.m,...distract].sort(()=>Math.random()-0.5);
+    return { w, opts, a:opts.indexOf(w.m) };
+  });
+  mockIdx=0; mockScore=0; mockWrong=[];
+  document.getElementById("mockStart").classList.add("hide");
+  document.getElementById("mockResult").classList.add("hide");
+  document.getElementById("mockQuiz").classList.remove("hide");
+  mockT0=Date.now(); clearInterval(mockTimerId); mockTimerId=setInterval(updMockTimer,1000); updMockTimer();
+  renderMockQ();
+}
+function updMockTimer(){
+  const s=Math.floor((Date.now()-mockT0)/1000);
+  document.getElementById("mockTimer").textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+}
+function renderMockQ(){
+  const q=mockQ[mockIdx];
+  document.getElementById("mockProg").textContent=`${mockIdx+1} / ${mockQ.length}`;
+  document.getElementById("mockHanzi").textContent=q.w.h;
+  document.getElementById("mockPinyin").textContent=q.w.p||"";
+  let html="";
+  q.opts.forEach((o,i)=> html+=`<button class="opt" onclick="mockPick(${i})">${String.fromCharCode(65+i)}. ${o}</button>`);
+  document.getElementById("mockOpts").innerHTML=html;
+}
+function mockPick(i){
+  const q=mockQ[mockIdx];
+  const opts=document.querySelectorAll("#mockOpts .opt");
+  opts.forEach((b,idx)=>{ b.classList.add("disabled"); b.onclick=null; if(idx===q.a) b.classList.add("correct"); });
+  if(i===q.a){ mockScore++; } else { opts[i].classList.add("wrong"); mockWrong.push(q); }
+  setTimeout(()=>{ mockIdx++; if(mockIdx<mockQ.length) renderMockQ(); else finishMock(); }, 650);
+}
+function finishMock(){
+  clearInterval(mockTimerId);
+  const s=Math.floor((Date.now()-mockT0)/1000);
+  const time=Math.floor(s/60)+"分"+String(s%60).padStart(2,"0")+"秒";
+  const pct=Math.round(mockScore/mockQ.length*100);
+  document.getElementById("mockQuiz").classList.add("hide");
+  let html=`<h3>結果</h3>
+    <div class="stat-grid">
+      <div class="stat"><div class="n ${pct>=80?'good':pct>=60?'warn':'accent'}">${pct}%</div><div class="l">正答率</div></div>
+      <div class="stat"><div class="n">${mockScore}/${mockQ.length}</div><div class="l">正解数</div></div>
+    </div>
+    <p class="sub" style="margin-top:10px">所要時間: ${time}</p>`;
+  if(mockWrong.length){
+    html+=`<h3 style="margin-top:14px">復習（間違えた語）</h3>`;
+    mockWrong.forEach(q=> html+=`<div class="explain" style="margin-bottom:6px"><b>${q.w.h}</b> ${q.w.p||""} … ${q.w.m} <button class="btn ghost" style="width:auto; padding:3px 10px; display:inline-block" onclick="speak('${q.w.h}')">🔊</button></div>`);
+  } else { html+=`<p style="margin-top:12px">全問正解！🎉 お見事。</p>`; }
+  html+=`<div class="btn-row" style="margin-top:14px"><button class="btn primary" onclick="openMock()">もう一度</button></div>`;
+  const r=document.getElementById("mockResult"); r.innerHTML=html; r.classList.remove("hide");
 }
 
 /* ========================= MANAGE ========================= */
